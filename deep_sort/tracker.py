@@ -37,8 +37,9 @@ class Tracker:
 
     """
 
-    def __init__(self, metric, max_iou_distance=0.7, max_age=30, n_init=3):
+    def __init__(self, metric, sub_metric, max_iou_distance=0.7, max_age=30, n_init=3):
         self.metric = metric
+        self.sub_metric = sub_metric
         self.max_iou_distance = max_iou_distance
         self.max_age = max_age
         self.n_init = n_init
@@ -81,14 +82,21 @@ class Tracker:
         # Update distance metric.
         active_targets = [t.track_id for t in self.tracks if t.is_confirmed()]
         features, targets = [], []
+        sub_feats, sub_targets = [], []
         for track in self.tracks:
             if not track.is_confirmed():
                 continue
             features += track.features
             targets += [track.track_id for _ in track.features]
-            track.features = []
+            for subfeat in track.sub_features:
+                if subfeat is not None:
+                    sub_feats.append(subfeat)
+                    sub_targets.append(track.track_id)
         self.metric.partial_fit(
             np.asarray(features), np.asarray(targets), active_targets)
+        self.sub_metric.partial_fit(
+            np.asarray(sub_feats), np.asarray(sub_targets), active_targets
+        )
 
     def _match(self, detections):
 
@@ -126,13 +134,39 @@ class Tracker:
                 iou_matching.iou_cost, self.max_iou_distance, self.tracks,
                 detections, iou_track_candidates, unmatched_detections)
 
-        matches = matches_a + matches_b
-        unmatched_tracks = list(set(unmatched_tracks_a + unmatched_tracks_b))
+        # Associate remaing tracks using apperance sub-features
+        unmatched_tracks_ab = set(unmatched_tracks_a + unmatched_tracks_b)
+        subfeat_track_candidates = [
+            k for k in unmatched_tracks_ab if self.sub_metric.has_samples(k)
+        ]
+        unmatched_tracks_ab = [
+            k for k in unmatched_tracks_ab
+            if not self.sub_metric.has_samples(k)
+        ]
+        subfeat_det_candidates = [
+            k for k in unmatched_detections if
+            detections[k].sub_feature is not None
+        ]
+        unmatched_detections_ab = [
+            k for k in unmatched_detections if
+            detections[k].sub_feature is None
+        ]
+
+        matches_c, unmatched_tracks_c, unmatched_detections_c = linear_assignment.min_cost_matching(
+            self.sub_metric.distance, self.sub_metric.matching_threshold, self.tracks, detections,
+            subfeat_track_candidates, subfeat_det_candidates
+        )
+
+        matches = matches_a + matches_b + matches_c
+        unmatched_tracks = unmatched_tracks_ab + unmatched_tracks_c
+        unmatched_detections = unmatched_detections_ab + unmatched_detections_c
         return matches, unmatched_tracks, unmatched_detections
 
     def _initiate_track(self, detection):
         mean, covariance = self.kf.initiate(detection.to_xyah())
         self.tracks.append(Track(
+            detection,
             mean, covariance, self._next_id, self.n_init, self.max_age,
-            detection.feature))
+            detection.feature, detection.sub_feature
+        ))
         self._next_id += 1

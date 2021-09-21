@@ -122,7 +122,6 @@ class NearestNeighborDistanceMetric(object):
 
     def __init__(self, metric, matching_threshold, budget=None):
 
-
         if metric == "euclidean":
             self._metric = _nn_euclidean_distance
         elif metric == "cosine":
@@ -175,3 +174,9 @@ class NearestNeighborDistanceMetric(object):
         for i, target in enumerate(targets):
             cost_matrix[i, :] = self._metric(self.samples[target], features)
         return cost_matrix
+
+    def has_samples(self, k):
+        samples_k = self.samples.get(k)
+        if samples_k is None:
+            return False
+        return len(samples_k) > 0

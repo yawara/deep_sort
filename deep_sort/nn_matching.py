@@ -150,7 +150,8 @@ class NearestNeighborDistanceMetric(object):
             self.samples.setdefault(target, []).append(feature)
             if self.budget is not None:
                 self.samples[target] = self.samples[target][-self.budget:]
-        self.samples = {k: self.samples[k] for k in active_targets}
+        self.samples = {k: self.samples.setdefault(
+            k, []) for k in active_targets}
 
     def distance(self, features, targets):
         """Compute distance between features and targets.
@@ -175,8 +176,8 @@ class NearestNeighborDistanceMetric(object):
             cost_matrix[i, :] = self._metric(self.samples[target], features)
         return cost_matrix
 
-    def has_samples(self, k):
-        samples_k = self.samples.get(k)
-        if samples_k is None:
+    def has_samples(self, track_id):
+        samples = self.samples.get(track_id)
+        if samples is None:
             return False
-        return len(samples_k) > 0
+        return len(samples) > 0

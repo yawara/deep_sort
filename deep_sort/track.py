@@ -77,6 +77,7 @@ class Track:
         self.features = []
         if feature is not None:
             self.features.append(feature)
+        self.sub_features = []
         if sub_feature is not None:
             self.sub_features.append(sub_feature)
 

@@ -110,6 +110,13 @@ class Tracker:
 
             return cost_matrix
 
+        def sub_metric(tracks, dets, track_indices, detection_indices):
+            sub_features = np.array(
+                [dets[i].sub_feature for i in detection_indices])
+            targets = np.array([tracks[i].track_id for i in track_indices])
+            cost_matrix = self.sub_metric.distance(sub_features, targets)
+            return cost_matrix
+
         # Split track set into confirmed and unconfirmed tracks.
         confirmed_tracks = [
             i for i, t in enumerate(self.tracks) if t.is_confirmed()]
@@ -137,11 +144,11 @@ class Tracker:
         # Associate remaing tracks using apperance sub-features
         unmatched_tracks_ab = set(unmatched_tracks_a + unmatched_tracks_b)
         subfeat_track_candidates = [
-            k for k in unmatched_tracks_ab if self.sub_metric.has_samples(k)
+            k for k in unmatched_tracks_ab if self.sub_metric.has_samples(self.tracks[k].track_id)
         ]
         unmatched_tracks_ab = [
             k for k in unmatched_tracks_ab
-            if not self.sub_metric.has_samples(k)
+            if not self.sub_metric.has_samples(self.tracks[k].track_id)
         ]
         subfeat_det_candidates = [
             k for k in unmatched_detections if
@@ -153,7 +160,7 @@ class Tracker:
         ]
 
         matches_c, unmatched_tracks_c, unmatched_detections_c = linear_assignment.min_cost_matching(
-            self.sub_metric.distance, self.sub_metric.matching_threshold, self.tracks, detections,
+            sub_metric, self.sub_metric.matching_threshold, self.tracks, detections,
             subfeat_track_candidates, subfeat_det_candidates
         )
 

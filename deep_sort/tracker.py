@@ -1,10 +1,36 @@
 # vim: expandtab:ts=4:sw=4
 from __future__ import absolute_import
 import numpy as np
+from numpy import linalg as LA
 from . import kalman_filter
 from . import linear_assignment
 from . import iou_matching
 from .track import Track
+from cython_bbox import bbox_overlaps
+
+
+def has_same_subfeat(det, tracks, feat_thresh=0.9, iou_thresh=0.5):
+    if det.sub_feature is None:
+        return False
+
+    tracks = [
+        track for track in tracks if track.detection is not None and track.detection.sub_feature is not None]
+    if len(tracks) == 0:
+        return False
+    t_tlbrs = [track.detection.sub_tlbr for track in tracks]
+    d_tlbrs = [det.sub_tlbr]
+    ious = bbox_overlaps(
+        np.ascontiguousarray(d_tlbrs, dtype=np.float),
+        np.ascontiguousarray(t_tlbrs, dtype=np.float),
+    )
+    for track_id, iou in enumerate(ious[0]):
+        if iou > iou_thresh:
+            dist = LA.norm(det.sub_feature -
+                           tracks[track_id].detection.sub_feature)
+            if dist < feat_thresh:
+                return True
+
+    return False
 
 
 class Tracker:
@@ -75,9 +101,11 @@ class Tracker:
                 self.kf, detections[detection_idx])
         for track_idx in unmatched_tracks:
             self.tracks[track_idx].mark_missed()
-        for detection_idx in unmatched_detections:
-            self._initiate_track(detections[detection_idx])
         self.tracks = [t for t in self.tracks if not t.is_deleted()]
+        for detection_idx in unmatched_detections:
+            if has_same_subfeat(detections[detection_idx], self.tracks):
+                continue
+            self._initiate_track(detections[detection_idx])
 
         # Update distance metric.
         active_targets = [t.track_id for t in self.tracks if t.is_confirmed()]

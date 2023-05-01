@@ -20,8 +20,8 @@ def has_same_subfeat(det, tracks, feat_thresh=0.9, iou_thresh=0.5):
     t_tlbrs = [track.detection.sub_tlbr for track in tracks]
     d_tlbrs = [det.sub_tlbr]
     ious = bbox_overlaps(
-        np.ascontiguousarray(d_tlbrs, dtype=np.float),
-        np.ascontiguousarray(t_tlbrs, dtype=np.float),
+        np.ascontiguousarray(d_tlbrs, dtype=float),
+        np.ascontiguousarray(t_tlbrs, dtype=float),
     )
     for track_id, iou in enumerate(ious[0]):
         if iou > iou_thresh:
